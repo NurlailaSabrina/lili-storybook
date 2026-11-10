@@ -5,6 +5,7 @@
   --ink: #fdf8ec;
   --accent: #f7c948;
   --paper: #fffdf6;
+  --fontq: "Quicksand", "Baloo 2", "Comic Sans MS", system-ui, sans-serif;
   --font: "Baloo 2", "Comic Sans MS", "Trebuchet MS", system-ui, sans-serif;
 }
 
@@ -191,13 +192,13 @@ button { font-family: inherit; }
   position: absolute; z-index: 8;
   left: 22%; width: 56%; top: 50.5%; height: 12%;
   border: 0; outline: 0; background: transparent;
-  font-family: var(--font); font-weight: 800;
+  font-family: var(--fontq); font-weight: 700;
   font-size: 6.6cqw; line-height: 1; text-align: center;
   color: #2a6b3c; padding: 0;
   user-select: text; -webkit-user-select: text;
   border-radius: 2cqw;
 }
-.name-input::placeholder { color: rgba(42,107,60,.38); font-weight: 600; font-size: 4.6cqw; }
+.name-input::placeholder { color: rgba(42,107,60,.38); font-weight: 600; font-size: 4.6cqw; font-family: var(--fontq); }
 .name-input:focus { background: rgba(42,107,60,.07); }
 
 /* page 15 bush reveal */
@@ -251,6 +252,82 @@ button { font-family: inherit; }
   background: #e53935; color: #fff; font-size: 5cqw; font-weight: 800;
   cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,.4);
 }
+
+/* ---------- quiz / game pop-ups (Quicksand) ---------- */
+.popup, .popup button, #toast { font-family: var(--fontq); }
+#popupHots, #popupFx { position: absolute; inset: 0; }
+#popupFx { pointer-events: none; z-index: 18; overflow: hidden; }
+.popup-card.wide { width: min(96vw, 1000px); height: min(90vh, 780px); aspect-ratio: auto; display: flex; flex-direction: column; background: #fff; }
+.popup-card.shake { animation: shake .4s ease; }
+
+.hot.plant { border-radius: 0; background: transparent; transition: left .85s cubic-bezier(.5,-.2,.3,1.1), top .85s cubic-bezier(.5,-.2,.3,1.1), width .85s ease, height .85s ease; }
+.hot.plant img { width: 100%; height: 100%; display: block; pointer-events: none; filter: drop-shadow(0 .4cqw .6cqw rgba(0,0,0,.35)); }
+.hot.plant:hover { background: transparent; box-shadow: none; }
+.hot.plant:hover img { filter: drop-shadow(0 0 1.2cqw rgba(255,235,120,.95)); }
+.basket-front { position: absolute; z-index: 14; pointer-events: none; display: block; -webkit-user-drag: none; }
+.hot.got { pointer-events: none; cursor: default; background: transparent; box-shadow: none; }
+.hot.plant.flying img { filter: drop-shadow(0 .5cqw .8cqw rgba(0,0,0,.4)); }
+
+.fx-counter {
+  position: absolute; left: 2.5%; top: 1.8%;
+  background: rgba(255,255,255,.92); color: #2a5a35; font-weight: 700; font-size: 4.2cqw;
+  padding: .6cqw 3cqw; border-radius: 999px; box-shadow: 0 .6cqw 1.6cqw rgba(0,0,0,.25);
+}
+.fx-tick {
+  position: absolute; transform: translate(-50%, -50%);
+  width: 12cqw; height: 12cqw; border-radius: 50%;
+  display: grid; place-items: center;
+  background: #2fb457; color: #fff; font-size: 8cqw; font-weight: 700; line-height: 1;
+  border: .7cqw solid #fff; box-shadow: 0 .8cqw 2cqw rgba(0,0,0,.35);
+  animation: tickIn .45s cubic-bezier(.2,1.6,.4,1);
+}
+@keyframes tickIn { from { transform: translate(-50%, -50%) scale(0); } }
+.fx-bubble {
+  position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
+  background: #fff; color: #d6362e; font-weight: 700; font-size: 9cqw; white-space: nowrap;
+  padding: 1.6cqw 7cqw; border-radius: 999px; border: .8cqw solid #ff6b5f;
+  box-shadow: 0 1.2cqw 3cqw rgba(0,0,0,.4);
+  animation: bubble 1.3s ease forwards;
+}
+.fx-bubble.ok { color: #1f8a3c; border-color: #43c06a; }
+@keyframes bubble {
+  0% { transform: translate(-50%, -30%) scale(.4); opacity: 0; }
+  15% { transform: translate(-50%, -50%) scale(1.08); opacity: 1; }
+  25% { transform: translate(-50%, -50%) scale(1); }
+  85% { opacity: 1; }
+  100% { transform: translate(-50%, -60%) scale(1); opacity: 0; }
+}
+.fx-win {
+  position: absolute; inset: 0; display: grid; align-content: start; justify-content: center; justify-items: center; gap: 2cqw;
+  padding-top: 13%;                                   /* sits high, so the full basket / ticked items stay visible */
+  background: linear-gradient(rgba(20, 50, 30, .6) 0, rgba(20, 50, 30, .45) 55%, rgba(20, 50, 30, 0) 75%);
+  animation: fadeIn .3s ease;
+}
+.fx-face { font-size: 22cqw; line-height: 1; animation: bounceFace .9s ease infinite; }
+.fx-txt {
+  background: #fff; color: #1f8a3c; font-weight: 700; font-size: 11cqw;
+  padding: 1.5cqw 9cqw; border-radius: 999px; border: .9cqw solid #f7c948;
+  box-shadow: 0 1.5cqw 4cqw rgba(0,0,0,.4);
+  animation: popIn .5s cubic-bezier(.2,1.4,.4,1);
+}
+@keyframes bounceFace { 50% { transform: translateY(-3cqw) scale(1.06) rotate(4deg); } }
+
+/* embedded Educaplay quiz (page 24) */
+.embed-layer { position: absolute; inset: 0; display: flex; flex-direction: column; background: #fff; color: #234; z-index: 15; }
+.embed-bar {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 8px 8px 18px; background: #2c5240; color: #fdf8ec; font-weight: 700; font-size: 18px;
+}
+.embed-close {
+  width: 38px; height: 38px; border-radius: 50%; border: 2px solid #fff;
+  background: #e53935; color: #fff; font-size: 18px; font-weight: 700; cursor: pointer;
+}
+.embed-layer iframe { flex: 1 1 auto; width: 100%; border: 0; background: #fff; min-height: 0; }
+.embed-open {
+  flex: 0 0 auto; text-align: center; padding: 7px 10px; background: #fff8dc; color: #4a3500;
+  font-weight: 600; font-size: 14px; text-decoration: none;
+}
+.embed-open:hover { text-decoration: underline; }
 
 /* ---------- toast ---------- */
 #toast {

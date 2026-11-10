@@ -9,7 +9,7 @@
   <link rel="icon" href="assets/pages/0.0.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -55,6 +55,15 @@
     <div class="popup-card" id="popupCard">
       <img id="popupImg" alt="">
       <div id="popupHots"></div>
+      <div id="popupFx"></div>
+      <div id="embedLayer" class="embed-layer" hidden>
+        <div class="embed-bar">
+          <span>Kuiz Lili dan Sumbui-sumbui</span>
+          <button id="embedClose" class="embed-close" aria-label="Tutup kuiz">✕</button>
+        </div>
+        <iframe id="embedFrame" title="Kuiz Lili dan Sumbui-sumbui" allow="fullscreen; autoplay"></iframe>
+        <a id="embedOpen" class="embed-open" target="_blank" rel="noopener">Kuiz tidak muncul? Buka dalam tab baharu ↗</a>
+      </div>
       <div id="videoLayer" class="video-layer" hidden>
         <video id="video" controls playsinline preload="none"></video>
         <button id="videoClose" class="video-close" aria-label="Tutup video">✕</button>

@@ -5,7 +5,8 @@
   const IMG = (n) => `assets/pages/${n}.webp`;
   const AUD = (n) => `assets/audio/${n}.m4a`;
   const QUIZ_URL = "https://www.educaplay.com/learning-resources/31355139-kui_lil.html";
-  const VIDEO_URL = "assets/video/kuih-dalamu.mp4";
+  const QUIZ_EMBED_URL = "https://www.educaplay.com/game/31355139-kui_lil.html";   // the game page itself, without the site chrome
+  const VIDEO_URL = "assets/video/kuih-dalamu-short.mp4";
 
   /* Sound-icon centres (percent of page), detected from the artwork. */
   const BL = [7.6, 92.7];           // usual bottom-left position
@@ -60,6 +61,66 @@
     },
   };
 
+  /* ---------- interactive activities (pop-up games) ----------
+     Boxes are [x0, y0, x1, y1] in pixels of the 1932-px-wide preview of each artwork
+     (converted to percent of the pop-up). */
+  const pc = (n) => n / 19.32;
+  const IDX11 = KEYS.indexOf("11"), IDX21 = KEYS.indexOf("21");
+  /* the plants are complete sprites (parts hidden by leaves in the artwork were redrawn) */
+  const PLANTS = [
+    [129.7, 692.1, 239.6, 1011.5], [441.4, 788.3, 532.4, 1000.3], [725.6, 902.5, 798.6, 1046.7],
+    [524.6, 1053.6, 614.8, 1294.0], [1144.6, 993.5, 1241.6, 1215.9], [1504.4, 743.6, 1589.4, 912.8],
+    [1592.8, 1095.7, 1737.1, 1438.3],
+  ];
+  /* where collected plants stand in the basket, in the order they are collected:
+     [centre x, bottom y, height] — the bottoms sit below the front rim, which is drawn over them */
+  const BASKET_SLOTS = [
+    [975, 1850, 400],                                     // front row
+    [800, 1745, 360], [1150, 1745, 360],                  // back row
+    [640, 1850, 380], [1310, 1850, 380],                  // front row
+    [480, 1735, 330], [1470, 1735, 330],                  // back row, outer
+  ];
+  const BASKET_FRONT = [150, 1540, 1790, 1932];           // box of the basket-front overlay (15.4)
+  const ACTS = {
+    /* page 11: which one mends the basket? -> the leaves */
+    q11: {
+      img: "11.1", need: 1, alt: "Lili mahu baiki bakul ayah dengan apa?",
+      items: [
+        { ok: true, rects: [[178, 748, 605, 1762]] },
+        { rects: [[752, 748, 1180, 1762]] },
+        { rects: [[1330, 748, 1758, 1762]] },
+      ],
+      win: "Betul!", autoNext: false,
+    },
+    /* page 15: collect the 7 pitcher plants (flowers are decoys) */
+    g15: {
+      img: "15.3", need: 7, counter: "🌿", alt: "Tolong Lili cari sumbui-sumbui", front: BASKET_FRONT,
+      items: [
+        ...PLANTS.map((r, i) => ({ ok: true, rects: [r], plant: i + 1 })),
+        { rects: [[30, 1170, 190, 1300]] }, { rects: [[165, 1285, 320, 1405]] },
+        { rects: [[285, 1215, 395, 1315]] }, { rects: [[40, 1360, 160, 1465]] },
+        { rects: [[1760, 660, 1930, 830]] }, { rects: [[1700, 835, 1850, 975]] },
+      ],
+      win: "Tahniah!", autoNext: true,
+    },
+    /* page 21: pick the 5 ingredients (lemons, milk, eggs are decoys) */
+    g21: {
+      img: "21.1", need: 5, counter: "🥣", alt: "Pilih bahan untuk buat dalamu sumbui-sumbui",
+      items: [
+        { ok: true, tick: [180, 1180], rects: [[0, 940, 350, 1545], [330, 1260, 660, 1380]] },            // pisang
+        { ok: true, tick: [560, 1000], rects: [[235, 810, 870, 1255]] },                                  // tepung
+        { ok: true, tick: [1400, 960], rects: [[1275, 820, 1530, 1290], [1530, 820, 1580, 1005]] },        // gula
+        { ok: true, tick: [1650, 1210], rects: [[1530, 1005, 1780, 1395]] },                              // garam
+        { ok: true, tick: [1790, 880], rects: [[1600, 675, 1932, 1000], [1780, 1000, 1932, 1290]] },       // air
+        { rects: [[850, 1010, 1260, 1310]] },                                                             // lemon
+        { rects: [[1030, 460, 1275, 1165], [1275, 460, 1370, 820]] },                                     // susu
+        { rects: [[1470, 1320, 1530, 1650], [1530, 1395, 1845, 1650]] },                                  // telur
+      ],
+      win: "Tahniah!", autoNext: true,
+    },
+  };
+  const done = { q11: false, g15: false, g21: false };
+
   const $ = (s) => document.querySelector(s);
   const stage = $("#stage"), wrap = $("#bookWrap"), bookEl = $("#book");
   const btnPrev = $("#btnPrev"), btnNext = $("#btnNext"), label = $("#pageLabel");
@@ -88,11 +149,14 @@
   /* soft paper "swish" synthesised with Web Audio (no extra file).
      The audio engine is created once in advance (creating it inside a click can freeze
      the first page turn for ~150 ms on Windows) and woken up on the first tap. */
-  let actx = null, swishBuf = null;
+  let actx = null, swishBuf = null, noiseBuf = null;
   function initAudio() {
     if (actx) return;
     try {
       actx = new (window.AudioContext || window.webkitAudioContext)();
+      noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+      const nd = noiseBuf.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
       const len = 0.45, sr = actx.sampleRate;
       swishBuf = actx.createBuffer(1, Math.floor(sr * len), sr);
       const data = swishBuf.getChannelData(0);
@@ -113,6 +177,50 @@
       src.connect(f).connect(g).connect(actx.destination);
       src.start();
     } catch (e) { /* audio not available */ }
+  }
+
+  /* ---------- synthesised sound effects (no audio files needed) ---------- */
+  const ac = () => (actx && actx.state === "running" ? actx : null);
+  function tone(f0, t0, dur, o = {}) {
+    try {
+      const c = ac(); if (!c) return;
+      const { type = "sine", f1 = f0, gain = 0.25 } = o;
+      const osc = c.createOscillator(), g = c.createGain(), t = c.currentTime + t0;
+      osc.type = type;
+      osc.frequency.setValueAtTime(f0, t);
+      if (f1 !== f0) osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(gain, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.connect(g).connect(c.destination);
+      osc.start(t); osc.stop(t + dur + 0.05);
+    } catch (e) { /* ignore */ }
+  }
+  function noise(t0, dur, freq, gain, q = 1) {
+    try {
+      const c = ac(); if (!c || !noiseBuf) return;
+      const src = c.createBufferSource(); src.buffer = noiseBuf;
+      const f = c.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q;
+      const g = c.createGain(), t = c.currentTime + t0;
+      g.gain.setValueAtTime(gain, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      src.connect(f).connect(g).connect(c.destination);
+      src.start(t, Math.random() * 0.5, dur + 0.05);
+    } catch (e) { /* ignore */ }
+  }
+  const sfxCorrect = () => { tone(660, 0, 0.16, { type: "triangle" }); tone(990, 0.1, 0.32, { type: "triangle" }); };
+  const sfxPlant = () => { tone(280, 0, 0.14, { f1: 760, gain: 0.3 }); tone(1180, 0.11, 0.2, { type: "triangle", gain: 0.18 }); };
+  const sfxBuzz = () => { tone(150, 0, 0.42, { type: "sawtooth", f1: 105, gain: 0.16 }); tone(155, 0, 0.42, { type: "square", f1: 108, gain: 0.07 }); };
+  const sfxReveal = () => {
+    [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, i * 0.07, 0.45, { type: "triangle", gain: 0.16 }));
+    tone(1760, 0.45, 0.5, { gain: 0.08 });
+  };
+  function sfxClap() {
+    for (let i = 0; i < 26; i++) {
+      const t = i < 4 ? i * 0.03 : 0.1 + Math.random() * 1.7;
+      noise(t, 0.07 + Math.random() * 0.05, 1500 + Math.random() * 1800, 0.5, 0.8);
+    }
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.4, { type: "triangle", gain: 0.12 }));
   }
 
   /* ---------- build pages ---------- */
@@ -176,7 +284,7 @@
       a.className = "hot area"; a.href = QUIZ_URL; a.target = "_blank"; a.rel = "noopener";
       a.setAttribute("aria-label", "Kuiz Lili dan Sumbui-sumbui");
       placeHot(a, d.link);
-      a.addEventListener("click", (e) => e.stopPropagation());
+      a.addEventListener("click", (e) => { e.stopPropagation(); e.preventDefault(); if (isIdle()) openEmbed(); });
       pg.appendChild(a);
     }
     if (d.name) {
@@ -283,11 +391,18 @@
   const curIdx = () => pf.getCurrentPageIndex();
   const isIdle = () => pf.getState() === "read" || pf.getState() === "fold_corner";
 
-  function lockedAhead() {
-    if (bushRevealed) return false;
-    const i = curIdx();
-    return isLandscape() ? i === IDX15 || i === IDX15 - 1 : i === IDX15;
+  /* which activity (if any) must be finished before turning forward from the current page */
+  const onSpread = (idx) => (isLandscape() ? curIdx() === idx || curIdx() === idx - 1 : curIdx() === idx);
+  function gate() {
+    if (onSpread(IDX15)) {
+      if (!bushRevealed) return "bush";
+      if (!done.g15) return "g15";
+    }
+    if (onSpread(IDX11) && !done.q11) return "q11";
+    if (onSpread(IDX21) && !done.g21) return "g21";
+    return null;
   }
+  const lockedAhead = () => gate() !== null;
 
   /* buttons / keyboard / swipe go through these, so page 15 can't be skipped */
   let pendingDir = 0;
@@ -353,7 +468,7 @@
     btnPrev.disabled = i <= 0;
     const atEnd = isLandscape() ? i >= TOTAL - 1 : i >= TOTAL - 1;
     btnNext.disabled = atEnd;
-    const locked = lockedAhead();
+    const locked = gate() === "bush";
     btnNext.classList.toggle("locked", locked);
     btnNext.setAttribute("aria-label", locked ? "Tekan semak dahulu" : "Halaman seterusnya");
     document.querySelectorAll(".pg").forEach((p) =>
@@ -369,6 +484,8 @@
     toastTimer = setTimeout(() => t.classList.remove("show"), ms);
   }
   function blocked() {
+    const g = gate();
+    if (g && g !== "bush") { openActivity(g); return; }   // quiz / games open as a mandatory pop-up
     wrap.classList.remove("shake"); void wrap.offsetWidth; wrap.classList.add("shake");
     toast("🌿 Tekan semak dahulu untuk melihat apa di sebaliknya!");
     const bush = pg15.querySelector('[data-act="bush"]');
@@ -380,6 +497,7 @@
     if (bushRevealed || !isIdle()) return;
     bushRevealed = true;
     stopAudio();
+    sfxReveal();
     pg.classList.add("revealed");
     btn.remove();
     const icons = ["🌿", "🍃", "✨", "🌱", "⭐"];
@@ -396,20 +514,28 @@
       setTimeout(() => s.remove(), 1300);
     }
     refreshUI();
-    setTimeout(() => {
-      toast("Hebat! Sekarang kamu boleh ke halaman seterusnya. ➜", 3000);
-      btnNext.classList.add("pulse");
-      setTimeout(() => btnNext.classList.remove("pulse"), 3600);
-    }, 1200);
+    setTimeout(() => { if (!popupOpen && gate() === "g15") openActivity("g15"); }, 1500);   // the pitcher-plant game opens by itself
   }
 
   /* ---------- pop-up slides ---------- */
   const popup = $("#popup"), popupImg = $("#popupImg"), popupHots = $("#popupHots");
   const videoLayer = $("#videoLayer"), video = $("#video");
 
+  const popupCard = $("#popupCard"), popupFx = $("#popupFx");
+  const embedLayer = $("#embedLayer"), embedFrame = $("#embedFrame");
+  let closable = true;
+
+  function resetPopup() {
+    popupFx.innerHTML = "";
+    popupCard.classList.remove("wide");
+    embedLayer.hidden = true;
+    popupImg.hidden = false;
+  }
+
   function openPopup(id) {
     const def = POPUPS[id];
     stopAudio();
+    resetPopup(); closable = true;
     popupImg.src = IMG(def.img);
     popupImg.alt = "Tahu kah kamu?";
     popupHots.innerHTML = "";
@@ -433,9 +559,126 @@
   }
   function closePopup() {
     stopAudio(); closeVideo();
+    embedFrame.src = "about:blank";
     popup.classList.add("closing");
-    setTimeout(() => { popup.hidden = true; popup.classList.remove("closing"); popupOpen = false; }, 220);
+    setTimeout(() => { popup.hidden = true; popup.classList.remove("closing"); popupOpen = false; resetPopup(); }, 220);
   }
+
+  /* ----- mandatory quiz / games ----- */
+  const hotBox = (el, [a, b, c, d]) =>
+    Object.assign(el.style, { left: pc(a) + "%", top: pc(b) + "%", width: pc(c - a) + "%", height: pc(d - b) + "%" });
+  let busy = false;                                           // true while a win animation plays
+
+  function say(text, cls = "bad", ms = 1300) {
+    const b = document.createElement("div");
+    b.className = "fx-bubble " + cls; b.textContent = text;
+    popupFx.appendChild(b);
+    setTimeout(() => b.remove(), ms);
+  }
+  function openActivity(id) {
+    const def = ACTS[id];
+    if (!def || popupOpen) return;
+    stopAudio();
+    resetPopup(); closable = false; busy = false;
+    popupImg.src = IMG(def.img); popupImg.alt = def.alt;
+    popupHots.innerHTML = "";
+    def.items.forEach((item) => { item.done = false; });      // fresh start every time (e.g. after "Baca semula")
+    let found = 0, pill = null;
+    if (def.counter) {
+      pill = document.createElement("div");
+      pill.className = "fx-counter";
+      popupFx.appendChild(pill);
+    }
+    const setPill = () => { if (pill) pill.textContent = `${def.counter} ${found} / ${def.need}`; };
+    setPill();
+    if (def.front) {                                          // front of the basket, drawn over the collected plants
+      const f = new Image(); f.src = IMG("15.4"); f.alt = ""; f.className = "basket-front"; f.draggable = false;
+      hotBox(f, def.front);
+      popupHots.appendChild(f);
+    }
+
+    def.items.forEach((item, n) => {
+      const btns = item.rects.map((r) => {
+        const b = document.createElement("button");
+        b.className = "hot area" + (item.plant ? " plant" : "");
+        b.setAttribute("aria-label", item.ok ? "Pilih" : "Cuba lagi");
+        hotBox(b, r);
+        if (item.plant) {
+          const im = new Image(); im.src = IMG("plant" + item.plant); im.alt = ""; im.draggable = false;
+          b.appendChild(im);
+        }
+        popupHots.appendChild(b);
+        return b;
+      });
+      btns.forEach((b) => b.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (busy || item.done) return;
+        if (!item.ok) {                                       // wrong choice
+          sfxBuzz();
+          say("Cuba lagi");
+          popupCard.classList.remove("shake"); void popupCard.offsetWidth; popupCard.classList.add("shake");
+          return;
+        }
+        item.done = true; found++; setPill();
+        btns.forEach((x) => { x.disabled = true; x.classList.add("got"); });
+        if (item.plant) {                                     // fly into the basket
+          sfxPlant();
+          const [r0] = item.rects, [sx, sb, sh] = BASKET_SLOTS[found - 1];
+          const w = r0[2] - r0[0], h = r0[3] - r0[1], k = sh / h;
+          b.style.zIndex = sb > 1800 ? 12 : 10;                  // front row in front of the back row, both behind the rim
+          requestAnimationFrame(() => Object.assign(b.style, {
+            left: pc(sx - (w * k) / 2) + "%", top: pc(sb - sh) + "%",
+            width: pc(w * k) + "%", height: pc(sh) + "%",
+          }));
+          b.classList.add("flying");
+        } else if (item.tick) {                               // tick mark
+          sfxCorrect();
+          const t = document.createElement("span");
+          t.className = "fx-tick"; t.textContent = "✓";
+          t.style.left = pc(item.tick[0]) + "%"; t.style.top = pc(item.tick[1]) + "%";
+          popupFx.appendChild(t);
+        } else sfxCorrect();
+        if (found >= def.need) finish(id, def);
+      }));
+    });
+
+    popup.classList.remove("closing");
+    popup.hidden = false;
+    popupOpen = true;
+  }
+  function finish(id, def) {
+    busy = true;
+    done[id] = true;
+    const w = document.createElement("div");
+    w.className = "fx-win";
+    w.innerHTML = `<div class="fx-face">😊</div><div class="fx-txt"></div>`;
+    w.querySelector(".fx-txt").textContent = def.win;
+    setTimeout(() => {
+      popupFx.appendChild(w);
+      if (def.autoNext) sfxClap(); else sfxCorrect();
+    }, 450);
+    setTimeout(() => {
+      closePopup();
+      if (def.autoNext) setTimeout(() => pf.flipNext("bottom"), 320);
+      else { btnNext.classList.add("pulse"); setTimeout(() => btnNext.classList.remove("pulse"), 3600); }
+    }, def.autoNext ? 2700 : 1700);
+  }
+
+  /* ----- page 24: the Educaplay quiz inside the book ----- */
+  function openEmbed() {
+    if (popupOpen) return;
+    stopAudio();
+    resetPopup(); closable = true;
+    popupImg.hidden = true; popupHots.innerHTML = "";
+    popupCard.classList.add("wide");
+    embedLayer.hidden = false;
+    embedFrame.src = QUIZ_EMBED_URL;
+    popup.classList.remove("closing");
+    popup.hidden = false;
+    popupOpen = true;
+  }
+  $("#embedClose").addEventListener("click", (e) => { e.stopPropagation(); closePopup(); });
+  $("#embedOpen").href = QUIZ_URL;
   function openVideo() {
     stopAudio();
     if (!video.src) video.src = VIDEO_URL;
@@ -450,7 +693,8 @@
   btnNext.addEventListener("click", () => pf.flipNext("bottom"));
   btnPrev.addEventListener("click", () => pf.flipPrev("bottom"));
   document.addEventListener("keydown", (e) => {
-    if (popupOpen || e.target.tagName === "INPUT") return;
+    if (popupOpen) { if (e.key === "Escape" && closable) closePopup(); return; }
+    if (e.target.tagName === "INPUT") return;
     if (e.key === "ArrowRight" || e.key === "PageDown") pf.flipNext("bottom");
     if (e.key === "ArrowLeft" || e.key === "PageUp") pf.flipPrev("bottom");
   });
@@ -464,6 +708,7 @@
     if (!isIdle()) return;
     stopAudio();
     bushRevealed = false;
+    done.q11 = done.g15 = done.g21 = false;
     pg15.classList.remove("revealed");
     if (!pg15.querySelector('[data-act="bush"]')) pg15.appendChild(makeBushButton(pg15));
     pf.turnToPage(0);
